@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     api_token: str | None = Field(default=None, repr=False)
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     log_level: str = "INFO"
+    mt5_terminal_path: str | None = Field(default=None, repr=False)
 
     model_config = SettingsConfigDict(
         env_file=".env",

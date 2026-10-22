@@ -5,11 +5,21 @@ must never send, modify, or close MetaTrader 5 orders.
 
 ## Phase 1: API foundation
 
-Phase 1 provides application configuration, JSON logging, request IDs, a public
-`GET /health` endpoint, bearer-token protection for non-health endpoints, CORS
-configuration, and OpenAPI documentation in development. The terminal route is
-an authenticated status placeholder until the read-only MT5 connector is added
-in Phase 2.
+Phases 1 and 2 provide application configuration, JSON logging, request IDs, a
+public `GET /health` endpoint, bearer-token protection for non-health endpoints,
+CORS configuration, development OpenAPI docs, a read-only MT5 adapter, and
+authenticated terminal and symbol endpoints. The MT5 adapter does not log in
+to accounts or expose any order execution methods. On non-Windows systems its
+status reports that the terminal platform is unsupported.
+
+Phase 3 adds bounded candle retrieval (M5/M15 only), excludes MT5 shift-zero
+forming bars, normalizes times to UTC, validates chronological data, and
+calculates EMA 20/50, RSI 14, and ATR 14.
+
+Phase 4 adds `GET /api/v1/signals`, which returns BUY, SELL, or NO_SIGNAL using
+trend, closed-candle EMA crossing, RSI, ATR, and optional spread checks. SL and
+TP are analytic reference levels derived from ATR. No order methods are
+implemented or invoked.
 
 ## Local setup
 
@@ -39,7 +49,11 @@ JSON array of explicitly allowed frontend origins.
 ## Endpoints in this phase
 
 - `GET /health` — public service liveness without host, account, or credential data.
-- `GET /api/v1/terminal` — authenticated placeholder (`not_configured`) until Phase 2.
+- `GET /api/v1/terminal` — authenticated connection status without account identifiers.
+- `GET /api/v1/symbols` — authenticated symbols from the connected terminal.
+- `GET /api/v1/candles?symbol=EURUSD&timeframe=M5&limit=100` — up to 1,000 closed bars.
+- `GET /api/v1/indicators?symbol=EURUSD&timeframe=M15` — latest EMA/RSI/ATR values.
+- `GET /api/v1/signals?symbol=EURUSD&timeframe=M5` — read-only current analysis and reference levels.
 
 Every response includes an `X-Request-ID`. A safe incoming request ID is
 preserved; otherwise one is generated. Logs avoid query strings and request

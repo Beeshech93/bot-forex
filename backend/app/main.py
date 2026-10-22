@@ -5,14 +5,17 @@ import re
 import time
 import uuid
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
+from app.api.backtest import router as backtest_router
+from app.api.market import router as market_router
+from app.api.signals import router as signals_router
+from app.api.terminal import router as terminal_router
 from app.config import get_settings
 from app.logging_config import configure_logging
-from app.security import require_api_token
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -65,14 +68,7 @@ async def request_context_middleware(request: Request, call_next):
 
 
 app.include_router(health_router)
-
-
-@app.get(
-    "/api/v1/terminal",
-    tags=["terminal"],
-    summary="Read terminal connection status",
-    dependencies=[Depends(require_api_token)],
-)
-async def terminal_status() -> dict[str, str]:
-    """Phase 1 placeholder; MT5 connectivity is implemented in Phase 2."""
-    return {"status": "not_configured", "message": "MetaTrader 5 connector is not implemented yet"}
+app.include_router(backtest_router)
+app.include_router(market_router)
+app.include_router(signals_router)
+app.include_router(terminal_router)
