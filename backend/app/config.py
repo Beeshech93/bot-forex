@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     log_level: str = "INFO"
     mt5_terminal_path: str | None = Field(default=None, repr=False)
+    database_url: str = Field(default="sqlite:///./smart_signals_fx.db", repr=False)
 
     model_config = SettingsConfigDict(
         env_file=".env",

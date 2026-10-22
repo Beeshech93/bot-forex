@@ -7,11 +7,18 @@ from app.services.mt5_service import MT5Service, MT5UnavailableError
 from app.services.market_service import InsufficientMarketDataError, calculate_indicators
 from app.strategies.ema_rsi_atr import StrategyConfig, generate_signal
 from app.backtesting.engine import BacktestRequest, run_backtest
+from app.api import backtest as backtest_api
+from app.api import signals as signals_api
 from datetime import datetime, timedelta, timezone
 import pytest
 
 client = TestClient(app)
+client.__enter__()
 VALID_TOKEN = "t" * 40
+
+
+def teardown_module() -> None:
+    client.__exit__(None, None, None)
 
 
 def setup_function() -> None:
@@ -224,3 +231,69 @@ def test_backtest_does_not_use_future_candle_to_create_signal() -> None:
         strategy=StrategyConfig(ema_fast=5, ema_slow=10, rsi_period=3, atr_period=3),
     )
     assert run_backtest(candles, request).trade_count == 0
+
+
+def test_strategy_configuration_is_persisted_and_validated(monkeypatch) -> None:
+    monkeypatch.setenv("API_TOKEN", VALID_TOKEN)
+    get_settings.cache_clear()
+    headers = {"Authorization": f"Bearer {VALID_TOKEN}"}
+    current = client.get("/api/v1/config", headers=headers)
+    assert current.status_code == 200
+    config = current.json()
+    config["rsi_buy_min"] = 60.0
+    updated = client.put("/api/v1/config", json=config, headers=headers)
+    assert updated.status_code == 200
+    assert client.get("/api/v1/config", headers=headers).json()["rsi_buy_min"] == 60.0
+    invalid = {**config, "ema_fast": 60, "ema_slow": 50}
+    assert client.put("/api/v1/config", json=invalid, headers=headers).status_code == 422
+    client.put("/api/v1/config", json={**config, "rsi_buy_min": 55.0}, headers=headers)
+
+
+def test_signal_history_and_metrics_are_authenticated(monkeypatch) -> None:
+    monkeypatch.setenv("API_TOKEN", VALID_TOKEN)
+    get_settings.cache_clear()
+    assert client.get("/api/v1/signals/history").status_code == 401
+    headers = {"Authorization": f"Bearer {VALID_TOKEN}"}
+    history = client.get("/api/v1/signals/history", headers=headers)
+    metrics = client.get("/api/v1/metrics", headers=headers)
+    assert history.status_code == 200
+    assert "items" in history.json()
+    assert metrics.status_code == 200
+    assert "by_symbol_timeframe" in metrics.json()
+
+
+def test_signal_endpoint_persists_one_record_per_closed_candle(monkeypatch) -> None:
+    monkeypatch.setenv("API_TOKEN", VALID_TOKEN)
+    get_settings.cache_clear()
+    candles = _candles([float(value) for value in range(1, 101)] + [91.0, 150.0])
+    monkeypatch.setattr(signals_api.market_service, "get_closed_candles", lambda *args: candles)
+    monkeypatch.setattr(signals_api, "current_strategy_config", lambda db: StrategyConfig(
+        ema_fast=5, ema_slow=10, rsi_period=3, atr_period=3))
+    headers = {"Authorization": f"Bearer {VALID_TOKEN}"}
+    first = client.get("/api/v1/signals?symbol=TESTEUR&timeframe=M5", headers=headers)
+    again = client.get("/api/v1/signals?symbol=TESTEUR&timeframe=M5", headers=headers)
+    history = client.get("/api/v1/signals/history?limit=500", headers=headers).json()["items"]
+    assert first.status_code == 200
+    assert first.json()["direction"] == "BUY"
+    assert again.status_code == 200
+    assert sum(item["symbol"] == "TESTEUR" for item in history) == 1
+
+
+def test_backtest_api_persists_result_id(monkeypatch) -> None:
+    monkeypatch.setenv("API_TOKEN", VALID_TOKEN)
+    get_settings.cache_clear()
+    candles = _candles([float(value) for value in range(1, 101)] + [91.0, 110.0, 110.0])
+    monkeypatch.setattr(backtest_api.mt5_service, "candles_between", lambda *args: candles)
+    payload = {
+        "symbol": "TESTEUR", "timeframe": "M5",
+        "start_date": candles[0]["time"].isoformat(), "end_date": candles[-1]["time"].isoformat(),
+        "strategy": {"ema_fast": 5, "ema_slow": 10, "rsi_period": 3, "atr_period": 3,
+                     "stop_atr_multiple": 0.1},
+    }
+    headers = {"Authorization": f"Bearer {VALID_TOKEN}"}
+    created = client.post("/api/v1/backtest", json=payload, headers=headers)
+    assert created.status_code == 200
+    result_id = created.json()["id"]
+    fetched = client.get(f"/api/v1/backtest/{result_id}", headers=headers)
+    assert fetched.status_code == 200
+    assert fetched.json()["result"]["symbol"] == "TESTEUR"

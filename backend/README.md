@@ -3,7 +3,7 @@
 FastAPI service for a read-only Forex and XAU/USD signal platform. The backend
 must never send, modify, or close MetaTrader 5 orders.
 
-## Phase 1: API foundation
+## Implemented API foundation and analysis
 
 Phases 1 and 2 provide application configuration, JSON logging, request IDs, a
 public `GET /health` endpoint, bearer-token protection for non-health endpoints,
@@ -21,6 +21,12 @@ trend, closed-candle EMA crossing, RSI, ATR, and optional spread checks. SL and
 TP are analytic reference levels derived from ATR. No order methods are
 implemented or invoked.
 
+The backtest engine uses only historical data through the signal candle, enters
+on the following bar, accounts for configurable spread/slippage, and assumes
+stop loss first when both SL and TP are touched in one OHLC candle. Backtests,
+signal history, and strategy configuration are stored in SQLite locally or
+PostgreSQL when `DATABASE_URL` is configured. The Next.js UI is in `../frontend`.
+
 ## Local setup
 
 Requires Python 3.11 or newer.
@@ -31,6 +37,10 @@ py -3.11 -m venv .venv
 python -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 ```
+
+On macOS/Linux use `python3 -m venv .venv`, activate `.venv`, and use `cp` for
+the environment file. `MetaTrader5` is installed only on Windows; unit tests
+mock its interface and do not require a real account.
 
 Replace `API_TOKEN` in `.env` with a random secret of at least 32 characters.
 Never commit `.env`. `GET /health` remains public; `/api/v1/*` routes require
@@ -54,6 +64,10 @@ JSON array of explicitly allowed frontend origins.
 - `GET /api/v1/candles?symbol=EURUSD&timeframe=M5&limit=100` — up to 1,000 closed bars.
 - `GET /api/v1/indicators?symbol=EURUSD&timeframe=M15` — latest EMA/RSI/ATR values.
 - `GET /api/v1/signals?symbol=EURUSD&timeframe=M5` — read-only current analysis and reference levels.
+- `GET /api/v1/signals/history` — persisted signal history.
+- `GET /api/v1/config` and `PUT /api/v1/config` — read and update validated strategy parameters.
+- `POST /api/v1/backtest` and `GET /api/v1/backtest/{id}` — run and retrieve persisted simulations.
+- `GET /api/v1/metrics` — aggregate stored backtest metrics.
 
 Every response includes an `X-Request-ID`. A safe incoming request ID is
 preserved; otherwise one is generated. Logs avoid query strings and request
@@ -65,5 +79,5 @@ bodies.
 python -m pytest
 ```
 
-The tests cover health availability, request ID handling, authentication, and
-fail-closed behavior when API authentication is not configured.
+The tests cover health, authentication, mocked MT5 access, closed-candle
+retrieval, indicators, signals, and backtest look-ahead and collision behavior.

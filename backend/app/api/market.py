@@ -48,4 +48,9 @@ async def indicators(
         "last_closed_candle_time": latest["time"],
         "periods": {"ema_fast": 20, "ema_slow": 50, "rsi": 14, "atr": 14},
         "values": values,
+        "series": [
+            {"time": row["time"], "ema_fast": (float(row["ema_fast"]) if row["ema_fast"] == row["ema_fast"] else None),
+             "ema_slow": (float(row["ema_slow"]) if row["ema_slow"] == row["ema_slow"] else None)}
+            for _, row in result.iterrows()
+        ],
     }
