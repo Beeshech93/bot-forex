@@ -18,6 +18,23 @@
    configure a Windows service manager for restart-on-failure, and verify
    `/health`, authenticated `/api/v1/terminal`, and `/api/v1/symbols`.
 
+After the service is running, open PowerShell in the repository root and run
+the read-only demo acceptance check. Set the API URL and token in the current
+PowerShell session (the token is never printed):
+
+```powershell
+$env:SMART_SIGNALS_API_URL = "https://signals.example.com"
+$env:SMART_SIGNALS_API_TOKEN = "<backend API token>"
+./scripts/verify-mt5-demo.ps1 -Symbol EURUSD -Timeframe M5
+```
+
+Use the broker's exact symbol name if it differs (for example, `EURUSD.a`).
+The script checks API health, authenticated terminal connectivity, symbol
+availability, at least 50 UTC closed candles, indicators, and a valid signal
+response. A successful run confirms read-only demo data access; it does not
+verify order execution because the application intentionally has no trading
+operations.
+
 The environment this project was built in is macOS, so a real MT5 connection on
 the Windows VPS remains to be verified. The Windows terminal must already be
 connected; this backend does not perform broker login.
