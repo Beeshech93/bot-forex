@@ -9,5 +9,6 @@ htmlcov/
 *.py[cod]
 node_modules/
 .next/
+frontend/.tmp/
 *.sqlite3
 *.db

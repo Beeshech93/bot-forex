@@ -30,12 +30,20 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       !(route === "api/v1/config" && request.method === "PUT")) {
     return NextResponse.json({ detail: "Method is not allowed" }, { status: 405 });
   }
-  const base = process.env.BACKEND_API_URL?.replace(/\/$/, "");
+  // Vercel injects BACKEND_URL from the frontend -> backend service binding.
+  // BACKEND_API_URL remains a local/standalone deployment fallback.
+  const boundBase = process.env.BACKEND_URL?.trim();
+  const base = (boundBase || process.env.BACKEND_API_URL)?.replace(/\/+$/, "");
   if (!base) return NextResponse.json({ detail: "Backend API is not configured" }, { status: 503 });
-  if (process.env.NODE_ENV === "production" && !base.startsWith("https://")) {
+  if (process.env.NODE_ENV === "production" && !boundBase && !base.startsWith("https://")) {
     return NextResponse.json({ detail: "Backend API must use HTTPS" }, { status: 503 });
   }
-  const target = new URL(`${base}/${route}`);
+  let target: URL;
+  try {
+    target = new URL(route, `${base}/`);
+  } catch {
+    return NextResponse.json({ detail: "Backend API URL is invalid" }, { status: 503 });
+  }
   target.search = request.nextUrl.search;
   const headers = new Headers();
   const token = process.env.BACKEND_API_TOKEN;

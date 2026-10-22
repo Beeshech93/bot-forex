@@ -39,15 +39,27 @@ The environment this project was built in is macOS, so a real MT5 connection on
 the Windows VPS remains to be verified. The Windows terminal must already be
 connected; this backend does not perform broker login.
 
-## Frontend on Vercel
+## Multi-service Vercel project
 
-1. Import the GitHub repository and set `frontend` as the Root Directory.
-2. Add `BACKEND_API_URL` (HTTPS origin), `BACKEND_API_TOKEN`,
-   `DASHBOARD_PASSWORD`, and `SESSION_SECRET` to Vercel's server-side environment
-   variables. Never use `NEXT_PUBLIC_` for any secret.
-3. Build and deploy the frontend. Keep the MT5-dependent backend on Windows.
-4. Verify service and terminal status, authenticated symbol/market calls, and
-   expected disconnected behavior before relying on market data.
+The repository-root `vercel.json` declares `frontend` (Next.js) and `backend`
+(FastAPI) services. All public paths route to the frontend so its `/api/auth/*`
+and `/api/proxy/*` handlers continue to work. The backend remains internal;
+the frontend's server-side proxy calls it through Vercel's `BACKEND_URL`
+service binding. This avoids routing browser requests around the session and
+API allowlist checks in the frontend.
+
+Set `BACKEND_API_TOKEN` on the frontend and the matching `API_TOKEN` on the
+backend. Also set `DASHBOARD_PASSWORD` and `SESSION_SECRET` for the frontend,
+and configure a durable PostgreSQL `DATABASE_URL` for the backend. Do not set
+`BACKEND_URL` manually; Vercel injects it from the binding. Keep all secrets
+server-side and do not use `NEXT_PUBLIC_` names.
+
+**Live MT5 data is not available when both services run on Vercel.** Vercel's
+FastAPI service runs on Linux and this repository's MT5 adapter only supports
+Windows. To use a connected MT5 terminal, deploy the backend on the Windows VPS
+described above and deploy the frontend separately with `BACKEND_API_URL` set
+to that backend's HTTPS origin. A Vercel service binding only targets another
+service in the same Vercel project, not an external Windows VPS.
 
 The backtest endpoint is synchronous and bounded to 20,000 candles. Set a
 reverse-proxy request timeout appropriate for the VPS and consider a background

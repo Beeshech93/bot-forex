@@ -20,11 +20,24 @@ variables are server-only too.
 
 ## Vercel deployment
 
-Import the repository, select `frontend` as the Root Directory, and configure
-`BACKEND_API_URL`, `BACKEND_API_TOKEN`, `DASHBOARD_PASSWORD`, and `SESSION_SECRET` as server-side environment variables
-for the required deployment environments. Do not prefix them with
-`NEXT_PUBLIC_`. Deploy the backend separately to a Windows VPS; a Vercel
-function cannot host the MetaTrader5 Python terminal integration.
+The repository-root `vercel.json` declares a Vercel Services project with a
+public Next.js frontend and a private FastAPI backend. The frontend calls the
+backend through the server-side `BACKEND_URL` service binding. Vercel injects
+that variable at function runtime; do not configure it manually. Set
+`BACKEND_API_TOKEN`, `DASHBOARD_PASSWORD`, and `SESSION_SECRET` as server-side
+environment variables for the appropriate services/environments. Keep
+`API_TOKEN` on the backend equal to `BACKEND_API_TOKEN` on the frontend. Never
+prefix secrets with `NEXT_PUBLIC_`.
+
+`BACKEND_API_URL` is only a fallback for local development or standalone
+frontend deployments. It is not needed for the Vercel binding.
+
+**MT5 limitation:** Vercel's FastAPI service runs on Linux, while this project's
+MetaTrader 5 adapter is Windows-only. The backend can deploy there, but it
+will report MT5 as unsupported and cannot supply live terminal data. Keep the
+MT5-connected backend on the Windows VPS for live data; that requires a
+standalone frontend using `BACKEND_API_URL` rather than this internal Vercel
+service binding.
 
 ## Pages
 
